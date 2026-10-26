@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DIRSO - Simulador, Controle e Histórico de Plantões</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            900: '#1e3a8a',
+                            950: '#0f172a',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #030712;
+            color: #f3f4f6;
+            user-select: none;
+        }
+        .tab-active {
+            border-bottom: 3px solid #3b82f6;
+            color: #60a5fa !important;
+            font-weight: 700;
+            background-color: rgba(30, 58, 138, 0.25);
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0b132b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1e293b;
+            border-radius: 4px;
+        }
+        .glass-card {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(51, 65, 85, 0.6);
+        }
+        .btn-stepper {
+            transition: all 0.1s ease-in-out;
+            touch-action: manipulation;
+        }
+        .btn-stepper:active {
+            transform: scale(0.92);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between antialiased">
+
+    <!-- Header Navigation -->
+    <header class="bg-slate-950/95 backdrop-blur-md border-b border-slate-800/80 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col sm:flex-row items-center justify-between py-3.5 gap-4">
+                
+                <!-- Brand Title & Date/Cycle Info -->
+                <div class="flex items-center space-x-3.5 w-full sm:w-auto">
+                    <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-blue-400 flex items-center justify-center text-white font-black text-2xl shadow-lg shadow-blue-500/20 shrink-0">
+                        <i class="fa-solid fa-shield-halved"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h1 class="text-xl font-black text-white tracking-tight">DIRSO</h1>
+                            <span class="text-[10px] uppercase font-bold px-2 py-0.5 rounded-md bg-blue-500/20 text-blue-400 border border-blue-500/30">Militar 2026</span>
+                        </div>
+                        <div class="flex items-center gap-3 text-xs text-slate-400 mt-0.5">
+                            <span class="flex items-center gap-1 font-semibold text-slate-300">
+                                <i class="fa-regular fa-calendar text-blue-400"></i> <span id="hdrCurrentDate">26/10/2026</span>
+                            </span>
+                            <span class="text-slate-600">•</span>
+                            <span class="text-emerald-400 font-semibold" id="hdrActiveCycle">Ciclo Ativo: 20/Out a 19/Nov</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Rank / Posto Selector -->
+                <div class="flex items-center space-x-2 bg-slate-900/90 p-1.5 rounded-xl border border-slate-800 w-full sm:w-auto">
+                    <label for="rankSelect" class="text-xs font-semibold text-slate-300 pl-2 whitespace-nowrap">
+                        <i class="fa-solid fa-user-shield text-blue-400 mr-1"></i> Posto / Patente:
+                    </label>
+                    <select id="rankSelect" class="w-full sm:w-auto bg-slate-950 text-xs sm:text-sm font-bold text-blue-400 rounded-lg px-3 py-2 border border-slate-700/80 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer">
+                        <option value="SD_CB" selected>CB, SD (Base: R$ 28,62 | +30%: R$ 37,21)</option>
+                        <option value="ST_SGT">ST, SGT (Base: R$ 35,78 | +30%: R$ 46,51)</option>
+                        <option value="CAP_TEN_ASP">Cap, Ten, Asp (Base: R$ 42,93 | +30%: R$ 55,81)</option>
+                        <option value="CEL_TC_MAJ">Cel, TC, Maj (Base: R$ 50,08 | +30%: R$ 65,10)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Tabs Navigation -->
+            <div class="flex space-x-2 sm:space-x-6 border-t border-slate-800/60 overflow-x-auto text-xs sm:text-sm pt-1">
+                <button onclick="switchTab('simulador')" id="tab-btn-simulador" class="py-3 px-3 text-slate-400 hover:text-slate-200 tab-active rounded-t-xl flex items-center gap-2 whitespace-nowrap transition-all">
+                    <i class="fa-solid fa-calculator"></i> Simulador Dinâmico
+                </button>
+                <button onclick="switchTab('lancamento')" id="tab-btn-lancamento" class="py-3 px-3 text-slate-400 hover:text-slate-200 rounded-t-xl flex items-center gap-2 whitespace-nowrap transition-all">
+                    <i class="fa-solid fa-calendar-plus"></i> Registrar Plantão
+                </button>
+                <button onclick="switchTab('historico')" id="tab-btn-historico" class="py-3 px-3 text-slate-400 hover:text-slate-200 rounded-t-xl flex items-center gap-2 whitespace-nowrap transition-all">
+                    <i class="fa-solid fa-clock-rotate-left"></i> Histórico & Extrato
+                </button>
+                <button onclick="switchTab('tabela')" id="tab-btn-tabela" class="py-3 px-3 text-slate-400 hover:text-slate-200 rounded-t-xl flex items-center gap-2 whitespace-nowrap transition-all">
+                    <i class="fa-solid fa-table-list"></i> Tabela Referencial DIRSO
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-grow max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+
+        <!-- Banner Excesso de Horas (Teto 96h) -->
+        <div id="excessAlertBanner" class="hidden mb-6 p-4 rounded-2xl bg-red-950/90 border border-red-500/80 text-red-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-2xl shadow-red-950/60">
+            <div class="flex items-center gap-3.5">
+                <div class="w-11 h-11 rounded-xl bg-red-500/20 flex items-center justify-center text-red-400 shrink-0 text-2xl border border-red-500/40">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+                <div>
+                    <h3 class="font-extrabold text-red-200 text-sm sm:text-base">LIMITE DE 96 HORAS ULTRAPASSADO NO CICLO</h3>
+                    <p class="text-xs text-red-300/90 mt-0.5" id="excessAlertMessage">As horas excedentes não serão remuneradas pelo DIRSO.</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                <div class="text-right">
+                    <span class="text-[10px] text-red-300/80 block uppercase font-bold">Retenção Financeira</span>
+                    <span class="text-sm font-black text-red-200" id="bannerExcessValue">R$ 0,00</span>
+                </div>
+                <span id="excessBadge" class="bg-red-600 text-white text-xs font-black px-3.5 py-2 rounded-xl border border-red-400 shadow-md">
+                    +0h Excedentes
+                </span>
+            </div>
+        </div>
+
+        <!-- ================= TAB 1: SIMULADOR DINÂMICO ================= -->
+        <section id="tab-simulador" class="space-y-6">
+            
+            <!-- Cards de Métricas em Tempo Real (KPIs) -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                
+                <!-- Carga Horária Total -->
+                <div class="glass-card rounded-2xl p-5 relative overflow-hidden shadow-lg">
+                    <div class="flex justify-between items-center">
+                        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Carga Horária Total</span>
+                        <i class="fa-solid fa-stopwatch text-blue-400 text-base"></i>
+                    </div>
+                    <div class="text-3xl font-black text-white mt-2" id="simTotalHours">0h <span class="text-xs font-semibold text-slate-500">/ 96h max</span></div>
+                    <div class="w-full bg-slate-900 rounded-full h-2.5 mt-3 overflow-hidden p-0.5 border border-slate-800">
+                        <div id="simHoursProgressBar" class="bg-blue-500 h-1.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <!-- Horas Remuneradas (Validadas) -->
+                <div class="glass-card rounded-2xl p-5 shadow-lg">
+                    <div class="flex justify-between items-center">
+                        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Horas Pagas (Teto 96h)</span>
+                        <i class="fa-solid fa-circle-check text-emerald-400 text-base"></i>
+                    </div>
+                    <div class="text-3xl font-black text-emerald-400 mt-2" id="simPaidHours">0h</div>
+                    <p class="text-[11px] text-emerald-500/90 mt-2 font-medium flex items-center gap-1">
+                        <i class="fa-solid fa-shield text-[10px]"></i> Remuneração Assegurada
+                    </p>
+                </div>
+
+                <!-- Horas Excedentes (Não Pagas) -->
+                <div class="glass-card rounded-2xl p-5 shadow-lg">
+                    <div class="flex justify-between items-center">
+                        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Horas Excedentes</span>
+                        <i class="fa-solid fa-ban text-amber-400 text-base"></i>
+                    </div>
+                    <div class="text-3xl font-black text-amber-400 mt-2" id="simExcessHours">0h</div>
+                    <p class="text-[11px] text-amber-400/90 mt-2 font-semibold" id="simExcessValue">Retenção: R$ 0,00</p>
+                </div>
+
+                <!-- Valor Bruto Líquido A Receber -->
+                <div class="glass-card rounded-2xl p-5 border border-blue-500/40 bg-gradient-to-br from-slate-900 via-slate-900 to-blue-950/60 shadow-2xl relative">
+                    <div class="flex justify-between items-center">
+                        <span class="text-[11px] font-bold text-blue-300 uppercase tracking-wider">Valor Bruto Válido</span>
+                        <i class="fa-solid fa-sack-dollar text-emerald-400 text-lg"></i>
+                    </div>
+                    <div class="text-3xl font-black text-white mt-2" id="simPaidValue">R$ 0,00</div>
+                    <div class="flex items-center justify-between mt-2 pt-2 border-t border-slate-800/80 text-[11px]">
+                        <span class="text-slate-400">Total Sem Trava:</span>
+                        <span class="text-slate-300 font-bold" id="simTotalGrossValue">R$ 0,00</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Matriz de Quantidade de Turnos com Steppers (+ e -) Reativos -->
+            <div class="glass-card rounded-2xl p-5 sm:p-6 shadow-xl">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 mb-6 border-b border-slate-800/80 gap-4">
+                    <div>
+                        <h2 class="text-lg font-black text-slate-100 flex items-center gap-2">
+                            <i class="fa-solid fa-sliders text-blue-400"></i> Simulação de Escalas & Turnos
+                        </h2>
+                        <p class="text-xs text-slate-400">Clique nos botões <span class="text-blue-400 font-bold">+</span> e <span class="text-blue-400 font-bold">-</span> para simular instantaneamente o total do seu ciclo.</p>
+                    </div>
+                    <button onclick="resetSimulation()" class="text-xs text-slate-300 hover:text-rose-400 bg-slate-900 hover:bg-slate-800 border border-slate-700/80 px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 font-semibold cursor-pointer">
+                        <i class="fa-solid fa-rotate-right"></i> Zerar Simulador
+                    </button>
+                </div>
+
+                <!-- Container do Grid de Dias e Turnos -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5" id="shiftCardsContainer">
+                    <!-- Gerado dinamicamente via JS -->
+                </div>
+            </div>
+
+            <!-- Visualização de Gráfico e Regras DIRSO -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Chart Canvas -->
+                <div class="lg:col-span-2 glass-card rounded-2xl p-5 sm:p-6 shadow-xl">
+                    <h3 class="text-sm font-bold text-slate-200 mb-4 flex items-center justify-between">
+                        <span class="flex items-center gap-2">
+                            <i class="fa-solid fa-chart-pie text-blue-400"></i> Distribuição Financeira do Ciclo
+                        </span>
+                        <span class="text-xs font-semibold text-slate-400" id="simChartRankLabel">CB, SD</span>
+                    </h3>
+                    <div class="h-64 relative">
+                        <canvas id="simChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Resumo & Regras Oficiais -->
+                <div class="glass-card rounded-2xl p-5 sm:p-6 shadow-xl flex flex-col justify-between space-y-4">
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-200 mb-3 flex items-center gap-2">
+                            <i class="fa-solid fa-circle-info text-blue-400"></i> Regras Oficiais DIRSO
+                        </h3>
+                        <div class="space-y-2.5 text-xs text-slate-300">
+                            <div class="p-3 bg-slate-950/80 rounded-xl border border-slate-800">
+                                <span class="font-bold text-blue-400 block mb-0.5">Ciclo de Pagamento:</span>
+                                Apuração do dia <strong>20 de um mês</strong> ao dia <strong>19 do mês seguinte</strong>.
+                            </div>
+                            <div class="p-3 bg-slate-950/80 rounded-xl border border-slate-800">
+                                <span class="font-bold text-emerald-400 block mb-0.5">Previsão de Crédito:</span>
+                                Creditado no dia <strong>1º do 2º mês subsequente</strong>.
+                            </div>
+                            <div class="p-3 bg-slate-950/80 rounded-xl border border-slate-800">
+                                <span class="font-bold text-amber-400 block mb-0.5">Teto Remuneratório:</span>
+                                Limite máximo rígido de <strong>96 horas remuneradas</strong> por ciclo mensal.
+                            </div>
+                        </div>
+                    </div>
+
+                    <button onclick="switchTab('lancamento')" class="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs sm:text-sm transition-all shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 cursor-pointer">
+                        <i class="fa-solid fa-plus-circle"></i> Lançar Dia Trabalhado
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= TAB 2: LANÇAMENTO DE DIA TRABALHADO ================= -->
+        <section id="tab-lancamento" class="hidden space-y-6 max-w-xl mx-auto">
+            <div class="glass-card rounded-2xl p-6 sm:p-8 shadow-2xl border border-slate-800">
+                <div class="pb-4 mb-6 border-b border-slate-800">
+                    <h2 class="text-xl font-black text-slate-100 flex items-center gap-2">
+                        <i class="fa-solid fa-calendar-plus text-blue-400"></i> Registrar Plantão Executado
+                    </h2>
+                    <p class="text-xs text-slate-400">Salve os dias trabalhados para histórico, extrato e controle de ciclo.</p>
+                </div>
+
+                <form id="addShiftForm" onsubmit="handleSaveShift(event)" class="space-y-5">
+                    <!-- Data do Plantão -->
+                    <div>
+                        <label class="block text-xs font-bold text-slate-300 mb-1.5">Data do Plantão *</label>
+                        <input type="date" id="shiftDate" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium">
+                    </div>
+
+                    <!-- Categoria do Dia (Auto-detectado) -->
+                    <div>
+                        <label class="block text-xs font-bold text-slate-300 mb-1.5">Dia da Semana / Categoria *</label>
+                        <select id="shiftDayCategory" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium">
+                            <option value="SEG_QUI">Segunda a Quinta (Normal)</option>
+                            <option value="SEX">Sexta-Feira</option>
+                            <option value="SAB">Sábado (+30%)</option>
+                            <option value="DOM">Domingo (+30%)</option>
+                        </select>
+                    </div>
+
+                    <!-- Tipo de Turno (10h, 12h, 24h) -->
+                    <div>
+                        <label class="block text-xs font-bold text-slate-300 mb-1.5">Turno Realizado (Horas) *</label>
+                        <select id="shiftType" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium">
+                            <option value="TURNO_A">Turno A (10 Horas)</option>
+                            <option value="TURNO_B">Turno B (12 Horas)</option>
+                            <option value="TURNO_24H">Turno 24h (24 Horas)</option>
+                        </select>
+                    </div>
+
+                    <!-- Observações -->
+                    <div>
+                        <label class="block text-xs font-bold text-slate-300 mb-1.5">Observações / Operação (Opcional)</label>
+                        <input type="text" id="shiftNotes" placeholder="Ex: Operação Reforço, Serviço Extra..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium">
+                    </div>
+
+                    <!-- Card de Pré-Visualização do Valor -->
+                    <div class="p-4 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between">
+                        <div>
+                            <span class="text-xs text-slate-400 block font-medium">Valor Deste Plantão:</span>
+                            <span class="text-[11px] text-blue-400 font-semibold" id="shiftPreviewRankInfo">Patente: CB, SD</span>
+                        </div>
+                        <span class="text-2xl font-black text-emerald-400" id="shiftPreviewValue">R$ 0,00</span>
+                    </div>
+
+                    <!-- Botão Salvar -->
+                    <button type="submit" class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-sm transition-all shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 cursor-pointer">
+                        <i class="fa-solid fa-floppy-disk"></i> Salvar Dia no Histórico
+                    </button>
+                </form>
+            </div>
+        </section>
+
+        <!-- ================= TAB 3: HISTÓRICO E CONTROLE ================= -->
+        <section id="tab-historico" class="hidden space-y-6">
+            <div class="glass-card rounded-2xl p-5 sm:p-6 shadow-xl border border-slate-800">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-100 flex items-center gap-2">
+                            <i class="fa-solid fa-clock-rotate-left text-blue-400"></i> Histórico de Plantões Registrados
+                        </h2>
+                        <p class="text-xs text-slate-400">Extrato detalhado por ciclo de pagamento e previsão de recebimento.</p>
+                    </div>
+
+                    <div class="flex items-center gap-2 w-full sm:w-auto">
+                        <button onclick="exportHistoryCSV()" class="flex-1 sm:flex-none px-3.5 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-700/80 rounded-xl text-xs font-semibold text-slate-200 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+                            <i class="fa-solid fa-file-csv text-emerald-400"></i> Exportar CSV
+                        </button>
+                        <button onclick="clearHistory()" class="flex-1 sm:flex-none px-3.5 py-2 bg-rose-950/50 hover:bg-rose-900/80 border border-rose-800/60 rounded-xl text-xs font-semibold text-rose-300 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+                            <i class="fa-solid fa-trash-can"></i> Limpar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Filtros do Histórico -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 mb-1">Filtrar por Ciclo:</label>
+                        <select id="historyCycleFilter" onchange="renderHistoryTable()" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none">
+                            <option value="ALL">Todos os Ciclos</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 mb-1">Buscar no Histórico:</label>
+                        <input type="text" id="historySearchInput" oninput="renderHistoryTable()" placeholder="Filtrar por notas/data..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none">
+                    </div>
+                    <div class="flex items-end">
+                        <div class="p-2.5 bg-slate-950 rounded-xl border border-slate-800 w-full flex items-center justify-between text-xs">
+                            <span class="text-slate-400 font-medium">Total do Filtro:</span>
+                            <span class="font-extrabold text-emerald-400 text-sm" id="filteredCycleTotal">R$ 0,00</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabela de Histórico -->
+            <div class="glass-card rounded-2xl overflow-hidden shadow-xl border border-slate-800">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-300">
+                        <thead class="bg-slate-950 uppercase font-bold text-slate-400 border-b border-slate-800">
+                            <tr>
+                                <th class="p-4">Data Plantão</th>
+                                <th class="p-4">Dia / Categoria</th>
+                                <th class="p-4">Turno</th>
+                                <th class="p-4">Carga Horária</th>
+                                <th class="p-4">Patente</th>
+                                <th class="p-4">Valor R$</th>
+                                <th class="p-4">Ciclo Correspondente</th>
+                                <th class="p-4">Previsão Pagamento</th>
+                                <th class="p-4 text-right">Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyTableBody" class="divide-y divide-slate-800/60">
+                            <!-- Inserido dinamicamente -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="emptyHistoryState" class="p-12 text-center text-slate-500 hidden">
+                    <i class="fa-solid fa-folder-open text-4xl mb-3 block text-slate-600"></i>
+                    Nenhum plantão registrado até o momento.
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= TAB 4: TABELA DE VALORES ================= -->
+        <section id="tab-tabela" class="hidden space-y-6">
+            <div class="glass-card rounded-2xl p-5 sm:p-6 shadow-xl border border-slate-800">
+                <div class="pb-4 mb-6 border-b border-slate-800">
+                    <h2 class="text-lg font-bold text-slate-100 flex items-center gap-2">
+                        <i class="fa-solid fa-table-list text-blue-400"></i> Tabela Oficial DIRSO de Valores e Horas
+                    </h2>
+                    <p class="text-xs text-slate-400">Consulta de valores por Hora Base e Hora com Adicional (+30% Finais de Semana).</p>
+                </div>
+
+                <!-- Tabela de Grupos de Patentes -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                    <!-- CB, SD -->
+                    <div class="bg-slate-950 border border-slate-800 rounded-2xl p-5">
+                        <div class="text-[10px] font-extrabold text-blue-400 uppercase tracking-wider mb-1">Grupo 1</div>
+                        <h3 class="text-lg font-black text-slate-100 mb-3">CB, SD</h3>
+                        <div class="space-y-2 text-xs">
+                            <div class="flex justify-between py-1 border-b border-slate-800/80">
+                                <span class="text-slate-400">Hora Normal:</span>
+                                <span class="font-bold text-slate-200">R$ 28,62</span>
+                            </div>
+                            <div class="flex justify-between py-1">
+                                <span class="text-slate-400">Hora +30% (FDS):</span>
+                                <span class="font-bold text-emerald-400">R$ 37,21</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ST, SGT -->
+                    <div class="bg-slate-950 border border-slate-800 rounded-2xl p-5">
+                        <div class="text-[10px] font-extrabold text-blue-400 uppercase tracking-wider mb-1">Grupo 2</div>
+                        <h3 class="text-lg font-black text-slate-100 mb-3">ST, SGT</h3>
+                        <div class="space-y-2 text-xs">
+                            <div class="flex justify-between py-1 border-b border-slate-800/80">
+                                <span class="text-slate-400">Hora Normal:</span>
+                                <span class="font-bold text-slate-200">R$ 35,78</span>
+                            </div>
+                            <div class="flex justify-between py-1">
+                                <span class="text-slate-400">Hora +30% (FDS):</span>
+                                <span class="font-bold text-emerald-400">R$ 46,51</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Cap, Ten, Asp -->
+                    <div class="bg-slate-950 border border-slate-800 rounded-2xl p-5">
+                        <div class="text-[10px] font-extrabold text-blue-400 uppercase tracking-wider mb-1">Grupo 3</div>
+                        <h3 class="text-lg font-black text-slate-100 mb-3">Cap, Ten, Asp</h3>
+                        <div class="space-y-2 text-xs">
+                            <div class="flex justify-between py-1 border-b border-slate-800/80">
+                                <span class="text-slate-400">Hora Normal:</span>
+                                <span class="font-bold text-slate-200">R$ 42,93</span>
+                            </div>
+                            <div class="flex justify-between py-1">
+                                <span class="text-slate-400">Hora +30% (FDS):</span>
+                                <span class="font-bold text-emerald-400">R$ 55,81</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Cel, TC, Maj -->
+                    <div class="bg-slate-950 border border-slate-800 rounded-2xl p-5">
+                        <div class="text-[10px] font-extrabold text-blue-400 uppercase tracking-wider mb-1">Grupo 4</div>
+                        <h3 class="text-lg font-black text-slate-100 mb-3">Cel, TC, Maj</h3>
+                        <div class="space-y-2 text-xs">
+                            <div class="flex justify-between py-1 border-b border-slate-800/80">
+                                <span class="text-slate-400">Hora Normal:</span>
+                                <span class="font-bold text-slate-200">R$ 50,08</span>
+                            </div>
+                            <div class="flex justify-between py-1">
+                                <span class="text-slate-400">Hora +30% (FDS):</span>
+                                <span class="font-bold text-emerald-400">R$ 65,10</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detalhamento de Turnos Completo -->
+                <div class="pt-6 border-t border-slate-800">
+                    <h3 class="text-sm font-bold text-slate-200 mb-4" id="referenceTableTitle">Detalhamento para o Posto Selecionado</h3>
+                    <div id="rankRatesDetailGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <!-- Gerado dinamicamente -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-slate-950 border-t border-slate-800/80 py-4 text-center text-xs text-slate-500">
+        DIRSO Gestão & Control - Módulo Militar 2026
+    </footer>
+
+    <!-- JavaScript Application Logic (Pure Vanilla JS) -->
+    <script>
+        // ================= CONFIGURAÇÕES E TAXAS OFICIAIS =================
+        const RANK_RATES = {
+            'SD_CB': { name: 'CB, SD', normal: 28.62, weekend: 37.21 },
+            'ST_SGT': { name: 'ST, SGT', normal: 35.78, weekend: 46.51 },
+            'CAP_TEN_ASP': { name: 'Cap, Ten, Asp', normal: 42.93, weekend: 55.81 },
+            'CEL_TC_MAJ': { name: 'Cel, TC, Maj', normal: 50.08, weekend: 65.10 }
+        };
+
+        // Valores da tabela semanal oficial para SD_CB
+        const BASE_CB_VALUES = {
+            'SEG_QUI': { 'TURNO_A': 344.16, 'TURNO_B': 395.78, 'TURNO_24H': 739.94 },
+            'SEX':     { 'TURNO_A': 344.16, 'TURNO_B': 412.99, 'TURNO_24H': 757.15 },
+            'SAB':     { 'TURNO_A': 447.41, 'TURNO_B': 447.41, 'TURNO_24H': 894.82 },
+            'DOM':     { 'TURNO_A': 447.41, 'TURNO_B': 430.20, 'TURNO_24H': 877.61 }
+        };
+
+        const SHIFT_TYPES = {
+            'TURNO_A': { name: 'Turno A', hours: 10 },
+            'TURNO_B': { name: 'Turno B', hours: 12 },
+            'TURNO_24H': { name: 'Turno 24h', hours: 24 }
+        };
+
+        const DAY_CATEGORIES = {
+            'SEG_QUI': { name: 'Segunda a Quinta' },
+            'SEX': { name: 'Sexta-Feira' },
+            'SAB': { name: 'Sábado' },
+            'DOM': { name: 'Domingo' }
+        };
+
+        // Estado reativo dos contadores do simulador
+        let simState = {
+            'SEG_QUI_TURNO_A': 0, 'SEG_QUI_TURNO_B': 0, 'SEG_QUI_TURNO_24H': 0,
+            'SEX_TURNO_A': 0,     'SEX_TURNO_B': 0,     'SEX_TURNO_24H': 0,
+            'SAB_TURNO_A': 0,     'SAB_TURNO_B': 0,     'SAB_TURNO_24H': 0,
+            'DOM_TURNO_A': 0,     'DOM_TURNO_B': 0,     'DOM_TURNO_24H': 0
+        };
+
+        let shiftHistory = [];
+        let simChartInstance = null;
+
+        // ================= INICIALIZAÇÃO E EVENT LISTENERS =================
+        window.addEventListener('DOMContentLoaded', () => {
+            initDatesAndCycle();
+            loadHistoryFromStorage();
+            renderSimulatorCards();
+            
+            // Reatividade ao alterar patente
+            document.getElementById('rankSelect').addEventListener('change', onReactiveUpdate);
+            
+            // Reatividade no formulário de registro
+            document.getElementById('shiftDate').addEventListener('change', () => {
+                autoDetectDayType();
+                updateFormPreview();
+            });
+            document.getElementById('shiftDayCategory').addEventListener('change', updateFormPreview);
+            document.getElementById('shiftType').addEventListener('change', updateFormPreview);
+
+            // Primeira renderização
+            onReactiveUpdate();
+            
+            // Set data inicial do formulário para a data atual (26/10/2026)
+            document.getElementById('shiftDate').value = '2026-10-26';
+            autoDetectDayType();
+        });
+
+        function initDatesAndCycle() {
+            const today = new Date('2026-10-26T00:00:00');
+            const formattedToday = today.toLocaleDateString('pt-BR');
+            document.getElementById('hdrCurrentDate').innerText = formattedToday;
+
+            const cycleInfo = calculateCycleAndForecast('2026-10-26');
+            document.getElementById('hdrActiveCycle').innerText = `Ciclo Ativo: ${cycleInfo.cycleName}`;
+        }
+
+        function onReactiveUpdate() {
+            updateSimulationCalculations();
+            updateFormPreview();
+            renderRankRatesDetail();
+            renderHistoryTable();
+        }
+
+        function switchTab(tabId) {
+            ['simulador', 'lancamento', 'historico', 'tabela'].forEach(id => {
+                document.getElementById(`tab-${id}`).classList.add('hidden');
+                document.getElementById(`tab-btn-${id}`).classList.remove('tab-active');
+            });
+            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+            document.getElementById(`tab-btn-${tabId}`).classList.add('tab-active');
+
+            if (tabId === 'simulador' && simChartInstance) {
+                simChartInstance.resize();
+            }
+        }
+
+        function getCurrentRankKey() {
+            return document.getElementById('rankSelect').value;
+        }
+
+        function getCurrentRankObj() {
+            return RANK_RATES[getCurrentRankKey()];
+        }
+
+        // Cálculo dinâmico do valor do turno por patente
+        function calculateShiftRate(rankKey, dayCatKey, shiftTypeKey) {
+            const baseCbVal = BASE_CB_VALUES[dayCatKey][shiftTypeKey];
+            const baseCbHourlyRate = RANK_RATES['SD_CB'].normal; // 28.62
+            
+            const targetHourlyRate = RANK_RATES[rankKey].normal;
+            const ratio = targetHourlyRate / baseCbHourlyRate;
+
+            return baseCbVal * ratio;
+        }
+
+        // ================= SIMULADOR REATIVO =================
+        function renderSimulatorCards() {
+            const container = document.getElementById('shiftCardsContainer');
+            container.innerHTML = '';
+
+            const dayGroups = [
+                { id: 'SEG_QUI', title: 'Segunda a Quinta', icon: 'fa-calendar-days', color: 'text-slate-300' },
+                { id: 'SEX', title: 'Sexta-Feira', icon: 'fa-calendar-check', color: 'text-blue-400' },
+                { id: 'SAB', title: 'Sábado', icon: 'fa-sun', color: 'text-amber-400' },
+                { id: 'DOM', title: 'Domingo', icon: 'fa-star', color: 'text-rose-400' }
+            ];
+
+            dayGroups.forEach(group => {
+                let html = `
+                    <div class="bg-slate-950/90 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between shadow-md">
+                        <h4 class="text-xs font-black text-slate-200 mb-3 flex items-center gap-2 border-b border-slate-800 pb-2">
+                            <i class="fa-solid ${group.icon} ${group.color}"></i> ${group.title}
+                        </h4>
+                        <div class="space-y-3">
+                `;
+
+                Object.keys(SHIFT_TYPES).forEach(shiftKey => {
+                    const shift = SHIFT_TYPES[shiftKey];
+                    const stateKey = `${group.id}_${shiftKey}`;
+                    const count = simState[stateKey] || 0;
+
+                    html += `
+                        <div class="bg-slate-900/90 p-3 rounded-xl border border-slate-800/80 flex items-center justify-between gap-2">
+                            <div>
+                                <div class="font-extrabold text-slate-200 text-xs">${shift.name} (${shift.hours}h)</div>
+                                <div class="text-[11px] font-bold text-emerald-400 mt-0.5" id="rate-${stateKey}">R$ 0,00</div>
+                            </div>
+                            <!-- Stepper + e - -->
+                            <div class="flex items-center gap-1.5 bg-slate-950 p-1 rounded-lg border border-slate-800">
+                                <button type="button" onclick="adjustSimCount('${stateKey}', -1)" class="btn-stepper w-7 h-7 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-200 rounded-md font-black flex items-center justify-center cursor-pointer text-xs select-none">-</button>
+                                <span class="w-6 text-center font-black text-xs text-blue-400" id="count-${stateKey}">${count}</span>
+                                <button type="button" onclick="adjustSimCount('${stateKey}', 1)" class="btn-stepper w-7 h-7 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white rounded-md font-black flex items-center justify-center cursor-pointer text-xs select-none">+</button>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                html += `</div></div>`;
+                container.innerHTML += html;
+            });
+        }
+
+        // Função de clique dos botões + e -
+        function adjustSimCount(key, delta) {
+            simState[key] = Math.max(0, (simState[key] || 0) + delta);
+            
+            // Atualiza o contador individual na DOM imediatamente
+            const countEl = document.getElementById(`count-${key}`);
+            if (countEl) countEl.innerText = simState[key];
+            
+            // Recalcula todas as métricas instantaneamente
+            updateSimulationCalculations();
+        }
+
+        function resetSimulation() {
+            Object.keys(simState).forEach(k => simState[k] = 0);
+            renderSimulatorCards();
+            updateSimulationCalculations();
+        }
+
+        // CÁLCULO REATIVO EM TEMPO REAL
+        function updateSimulationCalculations() {
+            const rankKey = getCurrentRankKey();
+            const rankObj = getCurrentRankObj();
+
+            let totalHours = 0;
+            let totalValueGross = 0;
+            let chartLabels = [];
+            let chartValues = [];
+
+            // Percorre todos os contadores
+            Object.keys(simState).forEach(key => {
+                const count = simState[key];
+                
+                // Extração dos códigos da chave
+                let dayCategoryKey, shiftKey;
+                if (key.startsWith('SEG_QUI')) {
+                    dayCategoryKey = 'SEG_QUI';
+                    shiftKey = key.replace('SEG_QUI_', '');
+                } else if (key.startsWith('SEX')) {
+                    dayCategoryKey = 'SEX';
+                    shiftKey = key.replace('SEX_', '');
+                } else if (key.startsWith('SAB')) {
+                    dayCategoryKey = 'SAB';
+                    shiftKey = key.replace('SAB_', '');
+                } else if (key.startsWith('DOM')) {
+                    dayCategoryKey = 'DOM';
+                    shiftKey = key.replace('DOM_', '');
+                }
+
+                const hours = SHIFT_TYPES[shiftKey].hours;
+                const shiftValue = calculateShiftRate(rankKey, dayCategoryKey, shiftKey);
+
+                totalHours += count * hours;
+                totalValueGross += count * shiftValue;
+
+                // Atualiza label individual de valor
+                const rateEl = document.getElementById(`rate-${key}`);
+                if (rateEl) {
+                    rateEl.innerText = `R$ ${shiftValue.toFixed(2)}`;
+                }
+
+                if (count > 0) {
+                    chartLabels.push(`${DAY_CATEGORIES[dayCategoryKey].name} (${SHIFT_TYPES[shiftKey].name})`);
+                    chartValues.push((count * shiftValue).toFixed(2));
+                }
+            });
+
+            // Lógica do Teto de 96 Horas
+            const paidHours = Math.min(totalHours, 96);
+            const excessHours = Math.max(0, totalHours - 96);
+
+            // Proporção exata para remuneração com trava em 96h
+            const effectiveRatio = totalHours > 0 ? (paidHours / totalHours) : 1;
+            const paidValue = totalValueGross * effectiveRatio;
+            const excessValue = totalValueGross - paidValue;
+
+            // Atualização dos elementos na DOM (Tempo Real)
+            document.getElementById('simTotalHours').innerHTML = `${totalHours}h <span class="text-xs font-semibold text-slate-500">/ 96h max</span>`;
+            document.getElementById('simPaidHours').innerText = `${paidHours}h`;
+            document.getElementById('simExcessHours').innerText = `${excessHours}h`;
+            
+            document.getElementById('simPaidValue').innerText = `R$ ${paidValue.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            document.getElementById('simTotalGrossValue').innerText = `R$ ${totalValueGross.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            document.getElementById('simExcessValue').innerText = `Retenção: R$ ${excessValue.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+
+            // Barra de Progresso
+            const progressPercent = Math.min(100, (totalHours / 96) * 100);
+            const progressBar = document.getElementById('simHoursProgressBar');
+            progressBar.style.width = `${progressPercent}%`;
+
+            // Alerta visual ao ultrapassar 96h
+            const alertBanner = document.getElementById('excessAlertBanner');
+            if (totalHours > 96) {
+                progressBar.classList.remove('bg-blue-500');
+                progressBar.classList.add('bg-red-500');
+
+                alertBanner.classList.remove('hidden');
+                document.getElementById('excessBadge').innerText = `+${excessHours}h Excedentes`;
+                document.getElementById('bannerExcessValue').innerText = `R$ ${excessValue.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                document.getElementById('excessAlertMessage').innerText = `Você selecionou ${totalHours}h no ciclo. O teto remunerado é 96h (${excessHours}h não serão pagas).`;
+            } else {
+                progressBar.classList.remove('bg-red-500');
+                progressBar.classList.add('bg-blue-500');
+                alertBanner.classList.add('hidden');
+            }
+
+            document.getElementById('simChartRankLabel').innerText = `Patente: ${rankObj.name}`;
+            renderSimChart(chartLabels, chartValues);
+        }
+
+        function renderSimChart(labels, data) {
+            const ctx = document.getElementById('simChart').getContext('2d');
+            if (simChartInstance) {
+                simChartInstance.destroy();
+            }
+
+            if (data.length === 0) {
+                labels = ['Nenhum Turno Selecionado'];
+                data = [1];
+            }
+
+            simChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: [
+                            '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'
+                        ],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: { color: '#94a3b8', font: { size: 10, family: 'Inter' } }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ================= LANÇAMENTO DE PLANTÃO =================
+        function autoDetectDayType() {
+            const dateVal = document.getElementById('shiftDate').value;
+            if (!dateVal) return;
+
+            const date = new Date(dateVal + 'T00:00:00');
+            const dayOfWeek = date.getDay(); // 0 = Dom, 5 = Sex, 6 = Sáb
+
+            const select = document.getElementById('shiftDayCategory');
+            if (dayOfWeek === 0) select.value = 'DOM';
+            else if (dayOfWeek === 5) select.value = 'SEX';
+            else if (dayOfWeek === 6) select.value = 'SAB';
+            else select.value = 'SEG_QUI';
+
+            updateFormPreview();
+        }
+
+        function updateFormPreview() {
+            const rankKey = getCurrentRankKey();
+            const rankObj = getCurrentRankObj();
+            const dayCatKey = document.getElementById('shiftDayCategory').value;
+            const shiftTypeKey = document.getElementById('shiftType').value;
+
+            const total = calculateShiftRate(rankKey, dayCatKey, shiftTypeKey);
+
+            document.getElementById('shiftPreviewRankInfo').innerText = `Patente: ${rankObj.name} (${DAY_CATEGORIES[dayCatKey].name})`;
+            document.getElementById('shiftPreviewValue').innerText = `R$ ${total.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        }
+
+        // Regra do Ciclo: Dia 20 a 19 do mês seguinte
+        function calculateCycleAndForecast(dateString) {
+            const date = new Date(dateString + 'T00:00:00');
+            const day = date.getDate();
+            let month = date.getMonth();
+            let year = date.getFullYear();
+
+            let cycleStartMonth, cycleStartYear, cycleEndMonth, cycleEndYear;
+
+            if (day >= 20) {
+                cycleStartMonth = month;
+                cycleStartYear = year;
+                cycleEndMonth = (month + 1) % 12;
+                cycleEndYear = month === 11 ? year + 1 : year;
+            } else {
+                cycleStartMonth = (month - 1 + 12) % 12;
+                cycleStartYear = month === 0 ? year - 1 : year;
+                cycleEndMonth = month;
+                cycleEndYear = year;
+            }
+
+            const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+            const cycleName = `20/${monthNames[cycleStartMonth]} a 19/${monthNames[cycleEndMonth]}/${cycleEndYear}`;
+
+            // Previsão de pagamento: Dia 1º do 2º mês após o término
+            let payMonth = (cycleEndMonth + 1) % 12;
+            let payYear = cycleEndMonth === 11 ? cycleEndYear + 1 : cycleEndYear;
+            const payForecast = `01/${String(payMonth + 1).padStart(2, '0')}/${payYear}`;
+
+            return { cycleName, payForecast };
+        }
+
+        function handleSaveShift(e) {
+            e.preventDefault();
+
+            const dateVal = document.getElementById('shiftDate').value;
+            const dayCatKey = document.getElementById('shiftDayCategory').value;
+            const shiftTypeKey = document.getElementById('shiftType').value;
+            const notes = document.getElementById('shiftNotes').value;
+            const rankKey = getCurrentRankKey();
+            const rankObj = getCurrentRankObj();
+
+            const hours = SHIFT_TYPES[shiftTypeKey].hours;
+            const totalValue = calculateShiftRate(rankKey, dayCatKey, shiftTypeKey);
+
+            const { cycleName, payForecast } = calculateCycleAndForecast(dateVal);
+
+            const newEntry = {
+                id: Date.now(),
+                date: dateVal,
+                dayCatKey,
+                shiftTypeKey,
+                hours,
+                rankKey,
+                rankName: rankObj.name,
+                totalValue,
+                cycleName,
+                payForecast,
+                notes
+            };
+
+            shiftHistory.unshift(newEntry);
+            saveHistoryToStorage();
+            renderHistoryTable();
+
+            document.getElementById('shiftNotes').value = '';
+            switchTab('historico');
+        }
+
+        // ================= HISTÓRICO & PERSISTÊNCIA =================
+        function saveHistoryToStorage() {
+            localStorage.setItem('dirso_shift_history_v4', JSON.stringify(shiftHistory));
+        }
+
+        function loadHistoryFromStorage() {
+            const stored = localStorage.getItem('dirso_shift_history_v4');
+            if (stored) {
+                try {
+                    shiftHistory = JSON.parse(stored);
+                } catch(e) {
+                    shiftHistory = [];
+                }
+            }
+        }
+
+        function clearHistory() {
+            if (confirm('Tem certeza que deseja apagar todo o histórico salvo?')) {
+                shiftHistory = [];
+                saveHistoryToStorage();
+                renderHistoryTable();
+            }
+        }
+
+        function deleteShiftEntry(id) {
+            shiftHistory = shiftHistory.filter(item => item.id !== id);
+            saveHistoryToStorage();
+            renderHistoryTable();
+        }
+
+        function renderHistoryTable() {
+            const tbody = document.getElementById('historyTableBody');
+            const emptyState = document.getElementById('emptyHistoryState');
+            const cycleFilterSelect = document.getElementById('historyCycleFilter');
+            const searchInput = (document.getElementById('historySearchInput').value || '').toLowerCase();
+
+            const cycles = [...new Set(shiftHistory.map(item => item.cycleName))];
+            const currentSelectedCycle = cycleFilterSelect.value;
+
+            cycleFilterSelect.innerHTML = '<option value="ALL">Todos os Ciclos</option>';
+            cycles.forEach(c => {
+                cycleFilterSelect.innerHTML += `<option value="${c}" ${currentSelectedCycle === c ? 'selected' : ''}>${c}</option>`;
+            });
+
+            const selectedCycle = cycleFilterSelect.value;
+
+            let filtered = shiftHistory.filter(item => {
+                const matchCycle = selectedCycle === 'ALL' || item.cycleName === selectedCycle;
+                const matchSearch = (item.notes || '').toLowerCase().includes(searchInput) || item.date.includes(searchInput) || item.rankName.toLowerCase().includes(searchInput);
+                return matchCycle && matchSearch;
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                document.getElementById('filteredCycleTotal').innerText = 'R$ 0,00';
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            tbody.innerHTML = '';
+
+            let filteredTotalValue = 0;
+
+            filtered.forEach(item => {
+                filteredTotalValue += item.totalValue;
+                const formattedDate = new Date(item.date + 'T00:00:00').toLocaleDateString('pt-BR');
+
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-800/40 transition-colors">
+                        <td class="p-4 font-bold text-slate-100">${formattedDate}</td>
+                        <td class="p-4">${DAY_CATEGORIES[item.dayCatKey].name}</td>
+                        <td class="p-4 font-medium">${SHIFT_TYPES[item.shiftTypeKey].name}</td>
+                        <td class="p-4 font-black text-blue-400">${item.hours}h</td>
+                        <td class="p-4"><span class="px-2 py-0.5 rounded-lg bg-slate-800 text-slate-300 border border-slate-700 font-semibold">${item.rankName}</span></td>
+                        <td class="p-4 font-black text-emerald-400">R$ ${item.totalValue.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                        <td class="p-4 text-slate-400 font-medium">${item.cycleName}</td>
+                        <td class="p-4 font-bold text-amber-400">${item.payForecast}</td>
+                        <td class="p-4 text-right">
+                            <button onclick="deleteShiftEntry(${item.id})" class="text-rose-400 hover:text-rose-300 p-1.5 rounded-lg hover:bg-rose-950/40 transition-colors cursor-pointer" title="Excluir">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            document.getElementById('filteredCycleTotal').innerText = `R$ ${filteredTotalValue.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        }
+
+        function exportHistoryCSV() {
+            if (shiftHistory.length === 0) {
+                alert('Não há dados no histórico para exportar.');
+                return;
+            }
+
+            let csv = "data:text/csv;charset=utf-8,Data,Categoria,Turno,Horas,Patente,Valor_RS,Ciclo,Previsao_Pagamento,Observacoes\n";
+
+            shiftHistory.forEach(item => {
+                const line = [
+                    item.date,
+                    DAY_CATEGORIES[item.dayCatKey].name,
+                    SHIFT_TYPES[item.shiftTypeKey].name,
+                    item.hours,
+                    item.rankName,
+                    item.totalValue.toFixed(2),
+                    `"${item.cycleName}"`,
+                    item.payForecast,
+                    `"${item.notes || ''}"`
+                ].join(",");
+                csv += line + "\n";
+            });
+
+            const encodedUri = encodeURI(csv);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `DIRSO_Extrato_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // ================= TABELA DE REFERÊNCIA =================
+        function renderRankRatesDetail() {
+            const rankKey = getCurrentRankKey();
+            const rankObj = getCurrentRankObj();
+            const grid = document.getElementById('rankRatesDetailGrid');
+            
+            document.getElementById('referenceTableTitle').innerText = `Detalhamento de Turnos para: ${rankObj.name}`;
+            grid.innerHTML = '';
+
+            Object.keys(DAY_CATEGORIES).forEach(dayKey => {
+                const dayName = DAY_CATEGORIES[dayKey].name;
+
+                let html = `
+                    <div class="bg-slate-950 p-4 rounded-xl border border-slate-800">
+                        <div class="font-bold text-blue-400 text-xs uppercase mb-2 border-b border-slate-800 pb-1">${dayName}</div>
+                        <div class="space-y-2 text-xs">
+                `;
+
+                Object.keys(SHIFT_TYPES).forEach(shiftKey => {
+                    const shiftName = SHIFT_TYPES[shiftKey].name;
+                    const val = calculateShiftRate(rankKey, dayKey, shiftKey);
+
+                    html += `
+                        <div class="flex justify-between items-center text-slate-300">
+                            <span class="text-slate-400">${shiftName}:</span>
+                            <span class="font-bold text-emerald-400">R$ ${val.toFixed(2)}</span>
+                        </div>
+                    `;
+                });
+
+                html += `</div></div>`;
+                grid.innerHTML += html;
+            });
+        }
+    </script>
+</body>
+</html>
