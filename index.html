@@ -384,14 +384,7 @@
     </main>
 
     <script>
-        // Import the functions you need from the SDKs you need
-        import {initializeApp} from "firebase/app";
-        import {getAnalytics} from "firebase/analytics";
-        // TODO: Add SDKs for Firebase products that you want to use
-        // https://firebase.google.com/docs/web/setup#available-libraries
-
-        // Your web app's Firebase configuration
-        // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+        // Configuração e inicialização do Firebase usando o SDK Compat correto
         const firebaseConfig = {
             apiKey: "AIzaSyBGV7mG9t3fupMzc3tpvvq2nvo5DNbQATQ",
             authDomain: "sisdirso.firebaseapp.com",
@@ -402,10 +395,10 @@
             measurementId: "G-57T1DHYS0D"
         };
 
-        // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        const analytics = getAnalytics(app);
-        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        // Inicializar o Firebase Compat de forma segura
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
         const auth = firebase.auth();
 
         const RATES = {
@@ -436,7 +429,7 @@
             },
             CEL_TC: {
                 seg_qui_a: 600.96, seg_qui_b: 691.00, seg_qui_24: 1292.00,
-                sex_a: 600.96, sex_b: 720.00, seg_24: 1320.00,
+                sex_a: 600.96, sex_b: 720.00, sex_24: 1320.00, // Corrigido de seg_24 para sex_24
                 sab_a: 781.20, sab_b: 781.20, sab_24: 1562.40,
                 dom_a: 781.20, dom_b: 752.00, dom_24: 1533.00
             }
@@ -467,7 +460,6 @@
             let totalHours = 0;
             let totalValue = 0;
 
-            // 1. Cálculo por turnos padronizados inteiros
             const hoursMap = {
                 seg_qui_a: 12, seg_qui_b: 12, seg_qui_24: 24,
                 sex_a: 12, sex_b: 12, sex_24: 24,
@@ -479,10 +471,9 @@
                 const qty = shiftCounts[key] || 0;
                 const shiftH = hoursMap[key];
                 totalHours += qty * shiftH;
-                totalValue += qty * rankValues[key];
+                totalValue += qty * (rankValues[key] || 0);
             }
 
-            // 2. Cálculo por horas inteiras avulsas (sem frações/minutos)
             const fNormal = parseInt(document.getElementById('frac_normal_hours').value) || 0;
             const fNight = parseInt(document.getElementById('frac_night_hours').value) || 0;
             const fSab = parseInt(document.getElementById('frac_sab_hours').value) || 0;
@@ -491,7 +482,6 @@
             totalHours += (fNormal + fNight + fSab + fDom);
             totalValue += (fNormal * rateInfo.base) + ((fNight + fSab + fDom) * rateInfo.bonus);
 
-            // Trava e regras de 96h
             const paidHours = Math.min(96, totalHours);
             const exceededHours = Math.max(0, totalHours - 96);
             const hourlyAvg = totalHours > 0 ? (totalValue / totalHours) : 0;
@@ -560,14 +550,14 @@
             historyShifts.forEach(item => {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-          <td class="p-3">${item.date}</td>
-          <td class="p-3 font-semibold">${item.rank}</td>
-          <td class="p-3">${item.totalHours}h</td>
-          <td class="p-3 font-semibold text-green-400">R$ ${item.value.toFixed(2)}</td>
-          <td class="p-3">
-            <button onclick="deleteShift(${item.id})" class="text-red-400 hover:text-red-300">Excluir</button>
-          </td>
-        `;
+                    <td class="p-3">${item.date}</td>
+                    <td class="p-3 font-semibold">${item.rank}</td>
+                    <td class="p-3">${item.totalHours}h</td>
+                    <td class="p-3 font-semibold text-green-400">R$ ${item.value.toFixed(2)}</td>
+                    <td class="p-3">
+                        <button onclick="deleteShift(${item.id})" class="text-red-400 hover:text-red-300">Excluir</button>
+                    </td>
+                `;
                 tbody.appendChild(tr);
             });
         }
@@ -595,7 +585,7 @@
         function loginGoogle() {
             const provider = new firebase.auth.GoogleAuthProvider();
             auth.signInWithPopup(provider).catch(err => {
-                alert("Sessão mantida localmente para simulação.");
+                alert("Erro ao autenticar com o Google: " + err.message);
             });
         }
 
